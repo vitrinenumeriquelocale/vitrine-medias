@@ -30,9 +30,29 @@ for i, c in enumerate(spec["clips"]):
     else:
         v = f"[0:v]{base},tpad=stop_mode=clone:stop_duration=2,{zoom},{GRADE}[v]"
     loop = ["-stream_loop", "2"] if c["kind"] == "broll" else []
+    if c.get("ss"): loop += ["-ss", str(c["ss"])]
     if c["kind"] == "broll" and c.get("slow"):
         v = v.replace("[0:v]", f"[0:v]setpts={c['slow']}*PTS,", 1)
     run(loop + ["-i", src, "-filter_complex", v, "-map", "[v]", "-t", f"{d:.3f}", "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "17", f"{R}/v{n}.mp4"])
+    # optional cutaway inserted over a talking shot: "insert": {"src": "b2.mp4", "t0": 0.2, "t1": 2.4, "zoom": [1.0, 1.1], "blurs": [...]}
+    ins = c.get("insert")
+    if ins:
+        t0, t1 = ins["t0"], min(ins["t1"], d); di = t1 - t0
+        iz0, iz1 = ins.get("zoom", [1.0, 1.1])
+        ib = "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,fps=30"
+        for bi, (x, y, w, h) in enumerate(ins.get("blurs", [])):
+            ib += f",split[m{bi}][b{bi}];[b{bi}]crop={w}:{h}:{x}:{y},boxblur=16:2[bb{bi}];[m{bi}][bb{bi}]overlay={x}:{y}"
+        iexpr = f"({iz0}+({iz1}-{iz0})*t/{di:.3f})"
+        izoom = f"scale=w='trunc(1080*{iexpr}/2)*2':h='trunc(1920*{iexpr}/2)*2':eval=frame,crop=1080:1920"
+        run(["-stream_loop", "2", "-i", f"{R}/{ins['src']}", "-filter_complex", f"[0:v]{ib},{izoom},{GRADE}[v]", "-map", "[v]", "-t", f"{di:.3f}", "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "17", f"{R}/i{n}.mp4"])
+        segs = []
+        if t0 > 0.02: segs.append(f"[0:v]trim=0:{t0:.3f},setpts=PTS-STARTPTS[p0]")
+        segs.append("[1:v]setpts=PTS-STARTPTS[p1]")
+        if d - t1 > 0.02: segs.append(f"[0:v]trim={t1:.3f}:{d:.3f},setpts=PTS-STARTPTS[p2]")
+        labs = "".join(l for l, ok in (("[p0]", t0 > 0.02), ("[p1]", True), ("[p2]", d - t1 > 0.02)) if ok)
+        segs.append(f"{labs}concat=n={labs.count('[')}:v=1:a=0[v]")
+        run(["-i", f"{R}/v{n}.mp4", "-i", f"{R}/i{n}.mp4", "-filter_complex", ";".join(segs), "-map", "[v]", "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "17", f"{R}/vi{n}.mp4"])
+        os.replace(f"{R}/vi{n}.mp4", f"{R}/v{n}.mp4")
     parts.append((f"{R}/v{n}.mp4", d))
 # concat video (hard cuts)
 with open(f"{R}/list.txt", "w") as f:
@@ -47,7 +67,13 @@ run(["-f", "lavfi", "-i", "anoisesrc=color=pink:duration=0.45:amplitude=0.6", "-
      "highpass=f=300,lowpass=f=6000,afade=t=in:d=0.25:curve=exp,afade=t=out:st=0.25:d=0.2,volume=0.35", f"{R}/whoosh.wav"])
 run(["-f", "lavfi", "-i", "sine=frequency=48:duration=0.9", "-af", "afade=t=out:d=0.9:curve=exp,volume=0.9", f"{R}/hit.wav"])
 cuts = []; acc = 0
-for _, d in parts[:-1]: acc += d; cuts.append(acc)
+for k2, (_, d) in enumerate(parts):
+    ins = spec["clips"][k2].get("insert")
+    if ins:
+        if ins["t0"] > 0.35: cuts.append(acc + ins["t0"])
+        if d - ins["t1"] > 0.02: cuts.append(acc + ins["t1"])
+    acc += d
+    if k2 < len(parts) - 1: cuts.append(acc)
 sfx_in = []; filt = []; k = 0
 for t in cuts:
     sfx_in += ["-i", f"{R}/whoosh.wav"]; filt.append(f"[{k}:a]adelay={int((t-0.3)*1000)}|{int((t-0.3)*1000)}[s{k}]"); k += 1
