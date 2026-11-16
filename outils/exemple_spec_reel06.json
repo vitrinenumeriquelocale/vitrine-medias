@@ -1,0 +1,12 @@
+{
+ "clips": [
+  {"src": "p1.mp4", "kind": "nora", "zoom": [1.0, 1.07]},
+  {"src": "b2.mp4", "kind": "broll", "zoom": [1.0, 1.12], "slow": 1.12, "blurs": [[400, 230, 260, 900], [50, 1140, 990, 260]]},
+  {"src": "p3.mp4", "kind": "nora", "zoom": [1.0, 1.05], "recrop": [3.1, 180, 760, 720, 1280]},
+  {"src": "b4.mp4", "kind": "broll", "zoom": [1.05, 1.15]},
+  {"src": "p5.mp4", "kind": "nora", "zoom": [1.0, 1.04], "punch": 1.1},
+  {"src": "p6.mp4", "kind": "nora", "zoom": [1.0, 1.06]}
+ ],
+ "hit": 5,
+ "music_vol": 0.2
+}
