@@ -35,6 +35,7 @@ WrapStyle: 0
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Cap,Poppins,112,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,-1,0,0,0,100,100,0,0,1,7,3,5,90,90,0,1
+Style: Big,Poppins,128,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,-1,0,0,0,100,100,0,0,1,9,5,5,60,60,0,1
 Style: Hook,Poppins,96,&H00FFFFFF,&H00FFFFFF,&H00000000,&H96000000,-1,0,0,0,100,100,0,0,3,18,0,8,70,70,0,1
 
 [Events]
@@ -55,10 +56,16 @@ for i, chunks in enumerate(spec["plans"]):
     for j, c in enumerate(chunks):
         st = starts[j]; en = starts[j+1] if j + 1 < len(chunks) else min(dur, (peaks[-1] + 0.35) if peaks else dur)
         if en - st < 0.25: en = st + 0.25
+        if spec.get("hook_big") and off+en <= spec.get("hook_dur",1.8): continue
+        if spec.get("hook_big") and off+st < spec.get("hook_dur",1.8): st = spec.get("hook_dur",1.8)-off
         lines.append(f"Dialogue: 0,{ts(off+st)},{ts(off+en)},Cap,,0,0,0,,{{\\pos(540,1100)\\fscx70\\fscy70\\t(0,80,\\fscx104\\fscy104)\\t(80,140,\\fscx100\\fscy100)}}" + fmt(c))
     off += dur
 total = off
-lines.append(f"Dialogue: 1,{ts(0)},{ts(2.0)},Hook,,0,0,0,,{{\\pos(540,290)\\fad(0,150)}}" + spec["hook"])
+if spec.get("hook_big"):
+    hd = spec.get("hook_dur", 1.8)
+    lines.append(f"Dialogue: 1,{ts(0)},{ts(hd)},Big,,0,0,0,,{{\\pos(540,{spec.get("hook_y",820)})\\fscx85\\fscy85\\t(0,120,\\fscx100\\fscy100)\\fad(0,120)}}" + spec["hook"])
+else:
+    lines.append(f"Dialogue: 1,{ts(0)},{ts(2.0)},Hook,,0,0,0,,{{\\pos(540,290)\\fad(0,150)}}" + spec["hook"])
 lines.append(f"Dialogue: 1,{ts(total-1.8)},{ts(total)},Hook,,0,0,0,,{{\\pos(540,290)\\fad(150,0)}}" + spec["end"])
 open(OUT, "w").write(HEAD + "\n".join(lines) + "\n")
 print(" ".join(f"{d:.3f}" for d in durs), f"total={total:.2f}")
